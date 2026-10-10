@@ -1,0 +1,1161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Gravity Sandbox 2D</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body class="relative w-screen h-screen overflow-hidden select-none bg-slate-950">
+
+  <!-- Interactive Canvas -->
+  <canvas id="simCanvas" class="absolute inset-0 z-0"></canvas>
+
+  <!-- Top Fixed Navigation Bar -->
+  <header class="absolute top-0 left-0 right-0 h-14 z-30 flex items-center justify-between px-2 sm:px-3 glass-panel border-t-0 border-x-0 border-b border-slate-800 gap-1 sm:gap-2 overflow-x-auto">
+    <!-- Left: Brand & Preset Selector -->
+    <div class="flex items-center gap-1 sm:gap-1.5 flex-shrink-0">
+      <div class="flex items-center gap-1.5 text-cyan-400 font-bold tracking-wider text-xs sm:text-sm flex-shrink-0">
+        <i class="fa-solid fa-atom fa-spin text-sm sm:text-base" style="animation-duration: 10s;"></i>
+        <span class="hidden xl:inline">GRAVITY<span class="text-white font-light">2D</span></span>
+      </div>
+      <div class="h-4 w-px bg-slate-700 hidden sm:block flex-shrink-0"></div>
+      <select id="presetSelect" class="bg-slate-800/90 text-[11px] sm:text-xs text-slate-200 border border-slate-700 rounded-lg px-1.5 sm:px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-cyan-500 hover:bg-slate-700/80 transition cursor-pointer w-28 sm:w-36 md:w-44 flex-shrink-0 truncate">
+        <option value="" selected>Presets...</option>
+        <option value="trojans">Sun - Jupiter - Trojans (L4/L5)</option>
+        <option value="earth_moon">Sun - Earth - Moon (Hill Sphere)</option>
+        <option value="solar">Solar System (8 Planets & Moons)</option>
+        <option value="protoplanetary_disk">Protoplanetary Disk (Accretion & Planet Formation)</option>
+        <option value="galactic_center">Galactic Center (Sgr A* & S-Cluster Stars)</option>
+        <option value="threebody">Three-Body Problem (Chaotic)</option>
+        <option value="negative_runaway">Negative Mass Dipole (Runaway)</option>
+        <option value="galaxy">Binary Galaxy Collision</option>
+        <option value="einstein_rosette">Einstein Rosette (Relativistic Precession)</option>
+        <option value="black_hole_capture">Black Hole & Event Horizon (GR)</option>
+        <option value="binary_merger">Binary Black Hole Merger (2.5PN GW)</option>
+        <option value="spray_playground">Spray Playground (Heavy Core)</option>
+      </select>
+      <button id="btnReloadPreset" class="p-1.5 w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-xs flex items-center justify-center transition flex-shrink-0" title="Reload current preset">
+        <i class="fa-solid fa-rotate-right text-cyan-400 text-xs"></i>
+      </button>
+    </div>
+
+    <!-- Center: Time & Physics Controller -->
+    <div class="flex items-center gap-1 sm:gap-1.5 flex-shrink-0">
+      <button id="btnPlayPause" class="p-1.5 w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white flex items-center justify-center transition shadow flex-shrink-0" title="Pause / Play (Space)">
+        <i id="playIcon" class="fa-solid fa-pause text-xs"></i>
+      </button>
+      <button id="btnStep" class="p-1.5 w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center transition flex-shrink-0" title="Step forward">
+        <i class="fa-solid fa-forward-step text-xs"></i>
+      </button>
+      
+      <!-- Time Speed Slider -->
+      <div class="flex items-center gap-1 text-xs text-slate-300 px-0.5 flex-shrink-0">
+        <input type="range" id="timeScale" min="0.001" max="100" step="any" value="1" class="w-12 sm:w-16 md:w-20 accent-cyan-400 cursor-pointer" title="Drag to adjust or click to enter exact speed">
+        <button type="button" id="btnTimeScaleEdit" class="mono text-[10px] sm:text-xs px-1.5 py-0.5 rounded bg-slate-800/80 hover:bg-slate-700 border border-slate-700/60 hover:border-cyan-500/60 text-cyan-300 hover:text-white transition flex items-center gap-1 cursor-pointer flex-shrink-0" title="Click to enter exact simulation speed">
+          <span id="timeScaleLabel">1.0x</span>
+          <i class="fa-solid fa-pen text-[8px] text-slate-400 opacity-70"></i>
+        </button>
+      </div>
+
+      <!-- Time Skip Button -->
+      <button id="btnOpenTimeSkip" class="px-1.5 sm:px-2 py-1 sm:py-1.5 rounded-lg bg-indigo-950/70 hover:bg-indigo-900 border border-indigo-700/60 text-indigo-200 text-[11px] sm:text-xs flex items-center gap-1 transition flex-shrink-0" title="Fast-forward time by skipping rendering">
+        <i class="fa-solid fa-forward-fast text-indigo-400 text-xs"></i>
+        <span class="hidden lg:inline">Skip</span>
+      </button>
+
+      <!-- Clear Button -->
+      <button id="btnClear" class="p-1 sm:px-2 sm:py-1.5 rounded-lg bg-red-900/40 hover:bg-red-800/60 border border-red-700/50 text-red-200 text-[11px] sm:text-xs flex items-center gap-1 transition flex-shrink-0" title="Clear all bodies">
+        <i class="fa-solid fa-trash-can text-xs"></i>
+        <span class="hidden xl:inline">Clear</span>
+      </button>
+    </div>
+
+    <!-- Right: Body List, Event History, Save / Load, & Side Panel Toggle -->
+    <div class="flex items-center gap-1 sm:gap-1.5 flex-shrink-0">
+      <!-- Body Catalog Button -->
+      <button id="btnOpenBodyList" class="p-1.5 sm:px-2.5 sm:py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs text-slate-200 border border-slate-700 flex items-center gap-1 transition flex-shrink-0" title="Open Celestial Catalog (Alive / Dead / Leaderboard)">
+        <i class="fa-solid fa-list-ul text-cyan-400 text-xs"></i>
+        <span class="hidden md:inline">Catalog</span>
+      </button>
+
+      <!-- Event History Button -->
+      <button id="btnToggleHistory" class="p-1.5 sm:px-2.5 sm:py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs text-slate-200 border border-slate-700 flex items-center gap-1 transition flex-shrink-0" title="Open Event History">
+        <i class="fa-solid fa-clock-rotate-left text-amber-400 text-xs"></i>
+        <span class="hidden md:inline">History</span>
+        <span id="eventCountBadge" class="bg-amber-500/20 text-amber-300 text-[10px] px-1 py-0.2 rounded-full mono font-bold">0</span>
+      </button>
+
+      <!-- Save / Load Button -->
+      <button id="btnOpenSaveModal" class="p-1.5 sm:px-2.5 sm:py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs text-slate-200 border border-slate-700 flex items-center gap-1 transition flex-shrink-0" title="Save & Load">
+        <i class="fa-solid fa-floppy-disk text-cyan-400 text-xs"></i>
+        <span class="hidden md:inline">Save</span>
+      </button>
+
+      <div class="h-4 w-px bg-slate-700"></div>
+
+      <!-- Settings Panel Toggle -->
+      <button id="btnToggleSidePanel" class="px-2.5 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-semibold flex items-center gap-1.5 transition border border-cyan-400 shadow-md flex-shrink-0" title="Toggle Settings Panel">
+        <i class="fa-solid fa-sliders text-xs"></i>
+        <span>Settings</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Camera Tracking Banner -->
+  <div id="trackingBanner" class="hidden absolute top-16 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2 px-3 py-1.5 rounded-full bg-cyan-950/85 border border-cyan-500/50 text-cyan-300 text-xs shadow-xl backdrop-blur-md">
+    <i class="fa-solid fa-crosshairs animate-spin text-cyan-400" style="animation-duration: 6s;"></i>
+    <span>Tracking: <strong id="trackingTargetName" class="text-white">Body</strong> <span id="trackingTargetSpeed" class="mono text-cyan-300 font-medium ml-1"></span></span>
+    <button id="btnToggleRelativeOrigin" class="ml-1 text-slate-300 hover:text-white px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-[11px] font-semibold border border-slate-700 transition flex items-center gap-1" title="Switch to relative coordinate frame with this body as the origin">
+      <i class="fa-solid fa-arrows-to-dot text-cyan-400 text-[10px]"></i>
+      <span id="btnToggleRelativeOriginLabel">Fix as Origin</span>
+    </button>
+    <button id="btnStopTracking" class="ml-0.5 text-slate-300 hover:text-white px-2 py-0.5 rounded bg-cyan-900 hover:bg-cyan-800 text-[11px] font-semibold transition" title="Stop tracking">Stop</button>
+  </div>
+
+  <!-- Right Side Configuration Panel -->
+  <aside id="sidePanel" class="fixed top-16 right-3 bottom-14 w-80 max-w-[calc(100vw-24px)] z-30 glass-panel rounded-2xl p-4 flex flex-col gap-4 overflow-y-auto pointer-events-auto transition-all duration-300 translate-x-full opacity-0 pointer-events-none">
+    <div class="flex items-center justify-between border-b border-slate-800 pb-2.5">
+      <div class="flex items-center gap-2 text-sm font-semibold text-slate-200">
+        <i id="panelHeaderIcon" class="fa-solid fa-sliders text-cyan-400"></i>
+        <span id="panelHeaderTitle">Visualization & Physics</span>
+      </div>
+      <button id="btnClosePanel" class="text-slate-400 hover:text-white text-sm">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+    </div>
+
+    <!-- Mode Selector -->
+    <div class="flex flex-col gap-1.5">
+      <label class="text-xs font-medium text-slate-400">Operation Mode</label>
+      <div class="grid grid-cols-4 gap-1 sm:gap-1.5">
+        <button id="modeLaunch" class="mode-btn flex items-center justify-center gap-1.5 py-2 px-1 rounded-lg border text-xs font-medium transition bg-slate-800/80 border-slate-700 text-slate-300 hover:bg-slate-700">
+          <i class="fa-solid fa-location-arrow"></i>
+          <span>Launch</span>
+        </button>
+        <button id="modeSpray" class="mode-btn flex items-center justify-center gap-1.5 py-2 px-1 rounded-lg border text-xs font-medium transition bg-slate-800/80 border-slate-700 text-slate-300 hover:bg-slate-700">
+          <i class="fa-solid fa-spray-can"></i>
+          <span>Spray</span>
+        </button>
+        <button id="modeDisk" class="mode-btn flex items-center justify-center gap-1.5 py-2 px-1 rounded-lg border text-xs font-medium transition bg-slate-800/80 border-slate-700 text-slate-300 hover:bg-slate-700">
+          <i class="fa-solid fa-circle-notch"></i>
+          <span>Disk</span>
+        </button>
+        <button id="modePan" class="mode-btn active flex items-center justify-center gap-1.5 py-2 px-1 rounded-lg border text-xs font-medium transition bg-cyan-600 border-cyan-400 text-white shadow">
+          <i class="fa-solid fa-hand"></i>
+          <span>Pan</span>
+        </button>
+      </div>
+      <p id="modeDesc" class="text-[11px] text-slate-400 mt-0.5 leading-snug">
+        Left-drag to pan screen (click body to inspect). Right-drag to box-select multiple bodies.
+      </p>
+
+      <!-- Pan Mode Hint Notice -->
+      <div id="panModeNotice" class="p-2.5 rounded-xl bg-cyan-950/40 border border-cyan-800/50 text-[11px] text-cyan-300/90 flex items-start gap-2 mt-1">
+        <i class="fa-solid fa-circle-info text-cyan-400 mt-0.5 flex-shrink-0"></i>
+        <span>In Pan/Select mode: Left-drag to pan screen (click body to inspect), right-drag to box-select multiple bodies.</span>
+      </div>
+
+      <!-- Spray Random Velocity Controller -->
+      <div id="spraySpeedContainer" class="hidden flex items-center justify-between gap-2 pt-1.5 mt-0.5 border-t border-slate-800/80">
+        <div class="flex items-center gap-1 text-[11px] text-slate-400 cursor-pointer hover:text-cyan-300 transition" id="lblSpraySpeed" title="Click to enter exact spray velocity">
+          <i class="fa-solid fa-wind text-cyan-400 text-[10px]"></i>
+          <span>Spray Dispersion Velocity</span>
+        </div>
+        <div class="flex items-center gap-1.5">
+          <input type="range" id="spraySpeedInput" min="0" max="1.5" step="0.05" value="0.3" class="w-20 accent-cyan-400 cursor-pointer" title="Drag to adjust or double-click to enter exact velocity">
+          <button type="button" id="btnSpraySpeedEdit" class="mono text-[11px] text-cyan-300 hover:text-white px-1.5 py-0.5 rounded bg-slate-800/80 hover:bg-slate-700 border border-slate-700/60 hover:border-cyan-500/60 flex items-center gap-1 cursor-pointer transition" title="Click to enter exact spray velocity">
+            <span id="spraySpeedVal">1.67 km/s</span>
+            <i class="fa-solid fa-pen text-[8px] text-slate-400 opacity-70"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Disk Placement Parameters -->
+      <div id="diskParametersSection" class="hidden flex flex-col gap-2.5 p-3 bg-slate-900/60 rounded-xl border border-slate-800 mt-1">
+        <div class="flex items-center justify-between text-xs">
+          <span class="font-semibold text-slate-300 flex items-center gap-1.5">
+            <i class="fa-solid fa-circle-notch text-cyan-400"></i> Disk / Ring Settings
+          </span>
+          <span class="text-[10px] text-slate-400 mono" id="diskSummaryBadge">40 bodies @ 200px</span>
+        </div>
+
+        <!-- Body Count -->
+        <div class="flex flex-col gap-1">
+          <div class="flex justify-between items-center text-xs">
+            <span id="lblDiskCount" class="text-slate-400 cursor-pointer hover:text-cyan-300 transition" title="Click to enter exact count">Body Count</span>
+            <button type="button" id="btnDiskCountEdit" class="mono text-[11px] text-cyan-300 hover:text-white px-1.5 py-0.5 rounded bg-slate-800/80 hover:bg-slate-700 border border-slate-700/60 hover:border-cyan-500/60 flex items-center gap-1 cursor-pointer transition" title="Click to enter exact body count">
+              <span id="diskCountVal">40</span>
+              <i class="fa-solid fa-pen text-[8px] text-slate-400 opacity-70"></i>
+            </button>
+          </div>
+          <input type="range" id="diskCountInput" min="5" max="250" step="5" value="40" class="w-full accent-cyan-400 cursor-pointer" title="Drag to adjust or double-click to enter exact count">
+        </div>
+
+        <!-- Base Radius / Distance -->
+        <div class="flex flex-col gap-1">
+          <div class="flex justify-between items-center text-xs">
+            <span id="lblDiskRadius" class="text-slate-400 cursor-pointer hover:text-cyan-300 transition" title="Click to enter exact distance">Base Distance</span>
+            <button type="button" id="btnDiskRadiusEdit" class="mono text-[11px] text-cyan-300 hover:text-white px-1.5 py-0.5 rounded bg-slate-800/80 hover:bg-slate-700 border border-slate-700/60 hover:border-cyan-500/60 flex items-center gap-1 cursor-pointer transition" title="Click to enter exact base distance">
+              <span id="diskRadiusVal">256,267 km <span class="text-[10px] text-slate-400 font-normal">(200 px)</span></span>
+              <i class="fa-solid fa-pen text-[8px] text-slate-400 opacity-70"></i>
+            </button>
+          </div>
+          <input type="range" id="diskRadiusInput" min="30" max="800" step="10" value="200" class="w-full accent-cyan-400 cursor-pointer" title="Drag to adjust or double-click to enter exact distance">
+        </div>
+
+        <!-- Distance Jitter (%) -->
+        <div class="flex flex-col gap-1">
+          <div class="flex justify-between items-center text-xs">
+            <span id="lblDiskRadiusJitter" class="text-slate-400 cursor-pointer hover:text-cyan-300 transition" title="Click to enter exact distance jitter">Distance Jitter (Dispersion)</span>
+            <button type="button" id="btnDiskRadiusJitterEdit" class="mono text-[11px] text-cyan-300 hover:text-white px-1.5 py-0.5 rounded bg-slate-800/80 hover:bg-slate-700 border border-slate-700/60 hover:border-cyan-500/60 flex items-center gap-1 cursor-pointer transition" title="Click to enter exact distance jitter">
+              <span id="diskRadiusJitterVal">+/-15%</span>
+              <i class="fa-solid fa-pen text-[8px] text-slate-400 opacity-70"></i>
+            </button>
+          </div>
+          <input type="range" id="diskRadiusJitterInput" min="0" max="80" step="5" value="15" class="w-full accent-cyan-400 cursor-pointer" title="Drag to adjust or double-click to enter exact jitter">
+        </div>
+
+        <!-- Base Speed -->
+        <div class="flex flex-col gap-1">
+          <div class="flex justify-between items-center text-xs">
+            <span id="lblDiskSpeed" class="text-slate-400 cursor-pointer hover:text-cyan-300 transition" title="Click to enter exact base speed">Base Speed</span>
+            <button type="button" id="btnDiskSpeedEdit" class="mono text-[11px] text-cyan-300 hover:text-white px-1.5 py-0.5 rounded bg-slate-800/80 hover:bg-slate-700 border border-slate-700/60 hover:border-cyan-500/60 flex items-center gap-1 cursor-pointer transition" title="Click to enter exact base orbital speed">
+              <span id="diskSpeedVal">27.89 km/s <span class="text-[10px] text-slate-400 font-normal">(5.0 px/s)</span></span>
+              <i class="fa-solid fa-pen text-[8px] text-slate-400 opacity-70"></i>
+            </button>
+          </div>
+          <input type="range" id="diskSpeedInput" min="0" max="30" step="0.5" value="5.0" class="w-full accent-cyan-400 cursor-pointer" title="Drag to adjust or double-click to enter exact speed">
+        </div>
+
+        <!-- Speed & Direction Jitter (%) -->
+        <div class="flex flex-col gap-1">
+          <div class="flex justify-between items-center text-xs">
+            <span id="lblDiskSpeedJitter" class="text-slate-400 cursor-pointer hover:text-cyan-300 transition" title="Click to enter exact speed jitter">Speed & Direction Jitter</span>
+            <button type="button" id="btnDiskSpeedJitterEdit" class="mono text-[11px] text-cyan-300 hover:text-white px-1.5 py-0.5 rounded bg-slate-800/80 hover:bg-slate-700 border border-slate-700/60 hover:border-cyan-500/60 flex items-center gap-1 cursor-pointer transition" title="Click to enter exact velocity jitter">
+              <span id="diskSpeedJitterVal">+/-10%</span>
+              <i class="fa-solid fa-pen text-[8px] text-slate-400 opacity-70"></i>
+            </button>
+          </div>
+          <input type="range" id="diskSpeedJitterInput" min="0" max="80" step="5" value="10" class="w-full accent-cyan-400 cursor-pointer" title="Drag to adjust or double-click to enter exact jitter">
+        </div>
+
+        <!-- Rotation Direction (CCW vs CW) & Auto Keplerian -->
+        <div class="grid grid-cols-2 gap-2 pt-1">
+          <div class="flex flex-col gap-1">
+            <span class="text-[11px] text-slate-400">Rotation Spin</span>
+            <div class="flex rounded-lg overflow-hidden border border-slate-700 bg-slate-950 p-0.5">
+              <button type="button" id="btnDiskDirCCW" class="flex-1 py-1 text-[11px] font-medium rounded transition bg-cyan-600 text-white flex items-center justify-center gap-1" title="Counter-Clockwise (Prograde)">
+                <i class="fa-solid fa-rotate-left text-[10px]"></i> CCW
+              </button>
+              <button type="button" id="btnDiskDirCW" class="flex-1 py-1 text-[11px] font-medium rounded transition text-slate-400 hover:text-slate-200 flex items-center justify-center gap-1" title="Clockwise (Retrograde)">
+                <i class="fa-solid fa-rotate-right text-[10px]"></i> CW
+              </button>
+            </div>
+          </div>
+
+          <div class="flex flex-col justify-end">
+            <label class="flex items-center gap-1.5 cursor-pointer pb-1 text-slate-300 hover:text-white transition">
+              <input type="checkbox" id="chkDiskAutoKeplerian" checked class="w-3.5 h-3.5 accent-cyan-400 rounded">
+              <span class="text-[11px] leading-tight font-medium">Auto-Keplerian</span>
+            </label>
+            <span class="text-[9px] text-slate-500 leading-tight">Auto-orbital speed around star</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Body Placement Settings (Hidden in Pan Mode) -->
+    <div id="bodyPlacementSection" class="hidden flex flex-col gap-3">
+      <!-- Mass Configuration -->
+      <div class="flex flex-col gap-2 p-3 bg-slate-900/60 rounded-xl border border-slate-800">
+        <div class="flex items-center justify-between text-xs">
+          <span id="lblMassTitle" class="font-semibold text-slate-300 cursor-pointer hover:text-cyan-300 transition flex items-center gap-1" title="Click to enter exact mass">Mass</span>
+          <div class="flex items-center gap-2">
+            <button type="button" id="btnMassEdit" class="mono text-cyan-300 hover:text-white px-1.5 py-0.5 rounded bg-slate-800/80 hover:bg-slate-700 border border-slate-700/60 hover:border-cyan-500/60 flex items-center gap-1 cursor-pointer transition text-xs" title="Click to enter exact mass">
+              <span id="massVal">5.972e+25 kg <span class="text-[10px] text-slate-400 font-normal">(100 units)</span></span>
+              <i class="fa-solid fa-pen text-[8px] text-slate-400 opacity-70"></i>
+            </button>
+            <div class="flex items-center gap-1.5 pl-2 border-l border-slate-700/80">
+              <input type="checkbox" id="chkNegativeMass" class="w-3.5 h-3.5 accent-pink-500 rounded cursor-pointer">
+              <label for="chkNegativeMass" class="text-xs text-pink-400 font-medium cursor-pointer">Negative</label>
+            </div>
+          </div>
+        </div>
+        <input type="range" id="massRange" min="1" max="5000" step="1" value="100" class="w-full accent-cyan-400 cursor-pointer" title="Drag to adjust or click to enter exact mass">
+        <div class="grid grid-cols-3 gap-1.5">
+          <button class="quick-mass text-[11px] py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700/60 text-center" data-mass="1">Asteroid (1u)</button>
+          <button class="quick-mass text-[11px] py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700/60 text-center" data-mass="10">Earth (10u)</button>
+          <button class="quick-mass text-[11px] py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700/60 text-center" data-mass="100">Super-Earth</button>
+          <button class="quick-mass text-[11px] py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700/60 text-center" data-mass="500">Gas Giant</button>
+          <button class="quick-mass text-[11px] py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700/60 text-center" data-mass="2500">Star (2.5ku)</button>
+          <button class="quick-mass text-[11px] py-1 rounded bg-pink-950/60 hover:bg-pink-900/80 text-pink-300 border border-pink-700/60 text-center" data-mass="-300">Negative (-300u)</button>
+        </div>
+      </div>
+
+      <!-- Radius, Fixed Anchor & Color -->
+      <div class="grid grid-cols-2 gap-3">
+        <!-- Radius -->
+        <div class="flex flex-col gap-1.5 p-3 bg-slate-900/60 rounded-xl border border-slate-800">
+          <div class="flex justify-between items-center text-xs">
+            <span id="lblRadiusTitle" class="text-slate-400 cursor-pointer hover:text-cyan-300 transition" title="Click to enter exact radius">Radius</span>
+            <button type="button" id="btnRadiusEdit" class="mono text-cyan-300 hover:text-white px-1.5 py-0.5 rounded bg-slate-800/80 hover:bg-slate-700 border border-slate-700/60 hover:border-cyan-500/60 flex items-center gap-1 cursor-pointer transition text-xs" title="Click to enter exact radius">
+              <span id="radiusVal">10,251 km <span class="text-[10px] text-slate-400 font-normal">(8 px)</span></span>
+              <i class="fa-solid fa-pen text-[8px] text-slate-400 opacity-70"></i>
+            </button>
+          </div>
+          <input type="range" id="radiusInput" min="2" max="60" value="8" class="accent-cyan-400 cursor-pointer w-full" title="Drag to adjust or click to enter exact radius">
+          <label class="flex items-center gap-1.5 text-[11px] text-slate-400 cursor-pointer mt-1">
+            <input type="checkbox" id="chkAutoRadius" checked class="w-3 h-3 accent-cyan-400 rounded">
+            <span>Auto-calculate from Mass</span>
+          </label>
+        </div>
+
+        <!-- Anchor Fixation -->
+        <div class="flex flex-col justify-between p-3 bg-slate-900/60 rounded-xl border border-slate-800">
+          <span class="text-xs text-slate-400">Position Anchor</span>
+          <label class="flex items-center gap-2 cursor-pointer mt-2">
+            <input type="checkbox" id="chkFixed" class="w-4 h-4 accent-amber-500 rounded">
+            <span class="text-xs font-medium text-amber-300">Fixed Anchor</span>
+          </label>
+          <span class="text-[10px] text-slate-500 leading-tight">Stationary body unaffected by external forces</span>
+        </div>
+      </div>
+
+      <!-- Color Presets -->
+      <div class="flex flex-col gap-1.5 p-3 bg-slate-900/60 rounded-xl border border-slate-800">
+        <div class="flex items-center justify-between text-xs">
+          <span class="text-slate-400">Body Color</span>
+          <div class="flex items-center gap-2">
+            <input type="color" id="bodyColorPicker" value="#38bdf8" class="w-6 h-6 rounded cursor-pointer border border-slate-700 bg-transparent">
+            <span id="bodyColorHex" class="mono text-xs text-slate-300">#38bdf8</span>
+          </div>
+        </div>
+        <div class="flex items-center justify-between pt-1">
+          <button class="color-preset w-5 h-5 rounded-full bg-cyan-400 ring-2 ring-transparent hover:scale-110 transition" data-color="#22d3ee"></button>
+          <button class="color-preset w-5 h-5 rounded-full bg-amber-400 ring-2 ring-transparent hover:scale-110 transition" data-color="#fbbf24"></button>
+          <button class="color-preset w-5 h-5 rounded-full bg-emerald-400 ring-2 ring-transparent hover:scale-110 transition" data-color="#34d399"></button>
+          <button class="color-preset w-5 h-5 rounded-full bg-pink-500 ring-2 ring-transparent hover:scale-110 transition" data-color="#ec4899"></button>
+          <button class="color-preset w-5 h-5 rounded-full bg-indigo-500 ring-2 ring-transparent hover:scale-110 transition" data-color="#6366f1"></button>
+          <button class="color-preset w-5 h-5 rounded-full bg-rose-500 ring-2 ring-transparent hover:scale-110 transition" data-color="#f43f5e"></button>
+          <button class="color-preset w-5 h-5 rounded-full bg-purple-400 ring-2 ring-transparent hover:scale-110 transition" data-color="#c084fc"></button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Physics & Visualization Settings -->
+    <div id="physicsVisualizationSection" class="flex flex-col gap-2.5 p-3 bg-slate-900/60 rounded-xl border border-slate-800">
+      <span class="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+        <i class="fa-solid fa-compass-drafting text-cyan-400"></i>
+        <span>Visualization & Physics Settings</span>
+      </span>
+
+      <div class="flex flex-col gap-2 pt-1 border-b border-slate-800 pb-2">
+        <label class="flex items-center justify-between text-xs text-slate-200 cursor-pointer">
+          <div class="flex items-center gap-1.5">
+            <input type="checkbox" id="chkShowBodyNames" checked class="w-3.5 h-3.5 accent-cyan-400 rounded cursor-pointer">
+            <span class="font-medium text-slate-200 flex items-center gap-1">
+              <i class="fa-solid fa-font text-[11px] text-cyan-400"></i> Show Body Names (#ID)
+            </span>
+          </div>
+        </label>
+        <label class="flex items-center justify-between text-xs text-slate-200 cursor-pointer">
+          <div class="flex items-center gap-1.5">
+            <input type="checkbox" id="chkHillSphere" checked class="w-3.5 h-3.5 accent-cyan-400 rounded cursor-pointer">
+            <span class="font-medium text-emerald-300 flex items-center gap-1">
+              <i class="fa-regular fa-circle-dot text-[11px]"></i> Hill Sphere (Gravitational Domain)
+            </span>
+          </div>
+          <span class="text-[10px] text-slate-400 mono">Always Overlay</span>
+        </label>
+        <label class="flex items-center justify-between text-xs text-slate-200 cursor-pointer">
+          <div class="flex items-center gap-1.5">
+            <input type="checkbox" id="chkShowDistanceLines" checked class="w-3.5 h-3.5 accent-cyan-400 rounded cursor-pointer">
+            <span class="font-medium text-sky-300 flex items-center gap-1">
+              <i class="fa-solid fa-ruler-combined text-[11px]"></i> Show Distance Line to Primary
+            </span>
+          </div>
+        </label>
+        <label class="flex items-center justify-between text-xs text-slate-200 cursor-pointer">
+          <div class="flex items-center gap-1.5">
+            <input type="checkbox" id="chkGravityField" class="w-3.5 h-3.5 accent-orange-400 rounded cursor-pointer">
+            <span class="font-medium text-orange-300 flex items-center gap-1">
+              <i class="fa-solid fa-fire text-[11px]"></i> Gravity Field Heatmap
+            </span>
+          </div>
+          <span class="text-[10px] text-slate-400 mono">Perf Impact</span>
+        </label>
+        <label class="flex items-center justify-between text-xs text-slate-200 cursor-pointer">
+          <div class="flex items-center gap-1.5">
+            <input type="checkbox" id="chkGravityContours" class="w-3.5 h-3.5 accent-cyan-400 rounded cursor-pointer">
+            <span class="font-medium text-cyan-300 flex items-center gap-1">
+              <i class="fa-solid fa-water text-[11px]"></i> Gravity Contours (Isolines)
+            </span>
+          </div>
+          <span class="text-[10px] text-slate-400 mono">Equipotential</span>
+        </label>
+        <label class="flex items-center justify-between text-xs text-slate-200 cursor-pointer">
+          <div class="flex items-center gap-1.5">
+            <input type="checkbox" id="chkEffectivePotential" class="w-3.5 h-3.5 accent-emerald-400 rounded cursor-pointer">
+            <span class="font-medium text-emerald-300 flex items-center gap-1">
+              <i class="fa-solid fa-arrows-spin text-[11px]"></i> Rotating Frame (L1-L5 Potential)
+            </span>
+          </div>
+          <span class="text-[10px] text-slate-400 mono">Trojan / Roche</span>
+        </label>
+      </div>
+
+      <div class="flex flex-col gap-1 text-xs">
+        <div class="flex justify-between items-center text-slate-400">
+          <span id="lblGravConstant" class="cursor-pointer hover:text-cyan-300 transition" title="Click to enter exact G">Gravitational Constant (G)</span>
+          <button type="button" id="btnGEdit" class="mono text-cyan-300 hover:text-white px-1.5 py-0.5 rounded bg-slate-800/80 hover:bg-slate-700 border border-slate-700/60 hover:border-cyan-500/60 flex items-center gap-1 cursor-pointer transition" title="Click to enter exact G">
+            <span id="gVal">1.0</span>
+            <i class="fa-solid fa-pen text-[8px] text-slate-400 opacity-70"></i>
+          </button>
+        </div>
+        <input type="range" id="gravConstant" min="0.1" max="5.0" step="0.1" value="1.0" class="accent-cyan-400 cursor-pointer" title="Drag to adjust or double-click to enter exact G">
+      </div>
+
+      <div class="grid grid-cols-2 gap-2 text-xs pt-1">
+        <label class="flex items-center gap-1.5 text-slate-300 cursor-pointer">
+          <input type="checkbox" id="chkCollisions" checked class="w-3.5 h-3.5 accent-cyan-400 rounded">
+          <span>Collisions & Merging</span>
+        </label>
+        <label class="flex items-center gap-1.5 text-slate-300 cursor-pointer">
+          <input type="checkbox" id="chkTrails" checked class="w-3.5 h-3.5 accent-cyan-400 rounded">
+          <span>Orbital Trails</span>
+        </label>
+      </div>
+
+      <!-- Extended Trail Length Slider -->
+      <div class="flex flex-col gap-1 text-xs pt-1 border-t border-slate-800">
+        <div class="flex justify-between items-center text-slate-400">
+          <span id="lblTrailLength" class="cursor-pointer hover:text-cyan-300 transition" title="Click to enter exact trail length">Trail Length</span>
+          <button type="button" id="btnTrailLengthEdit" class="mono text-cyan-300 hover:text-white px-1.5 py-0.5 rounded bg-slate-800/80 hover:bg-slate-700 border border-slate-700/60 hover:border-cyan-500/60 flex items-center gap-1 cursor-pointer transition" title="Click to enter exact trail length">
+            <span id="trailLengthVal">1000</span>
+            <i class="fa-solid fa-pen text-[8px] text-slate-400 opacity-70"></i>
+          </button>
+        </div>
+        <input type="range" id="trailLengthInput" min="100" max="10000" step="100" value="1000" class="accent-cyan-400 cursor-pointer" title="Drag to adjust or double-click to enter exact trail length">
+      </div>
+
+      <!-- General Relativity (1PN & 2.5PN) Settings -->
+      <div class="flex flex-col gap-2 pt-2 border-t border-slate-800">
+        <label class="flex items-center justify-between text-xs text-slate-300 cursor-pointer">
+          <span class="flex items-center gap-1.5 font-medium text-amber-300">
+            <i class="fa-solid fa-atom text-[11px]"></i> General Relativity
+          </span>
+          <input type="checkbox" id="chkRelativity" class="w-3.5 h-3.5 accent-amber-400 rounded">
+        </label>
+        
+        <div id="relativitySettings" class="hidden flex flex-col gap-2 text-xs pl-2 border-l-2 border-amber-500/40">
+          <div class="flex flex-col gap-1">
+            <div class="flex justify-between items-center text-slate-400">
+              <span id="lblSpeedOfLight" class="cursor-pointer hover:text-amber-300 transition" title="Click to enter exact speed of light">Speed of Light (c)</span>
+              <button type="button" id="btnSpeedOfLightEdit" class="mono text-amber-300 hover:text-white px-1.5 py-0.5 rounded bg-slate-800/80 hover:bg-slate-700 border border-slate-700/60 hover:border-amber-500/60 flex items-center gap-1 cursor-pointer transition text-right" title="Click to enter exact speed of light">
+                <span id="cVal" class="font-medium">557.72 km/s <span class="text-[10px] text-slate-400 font-normal">(100 px/s)</span></span>
+                <i class="fa-solid fa-pen text-[8px] text-slate-400 opacity-70"></i>
+              </button>
+            </div>
+            <input type="range" id="speedOfLightInput" min="20" max="500" step="5" value="100" class="accent-amber-400 cursor-pointer" title="Drag to adjust or double-click to enter exact speed of light">
+            <span class="text-[10px] text-slate-500 leading-tight">Lower c amplifies relativistic effects. (Ref: Earth orbit ≈ 29.8 km/s)</span>
+          </div>
+
+          <label class="flex items-center justify-between text-xs text-slate-300 cursor-pointer pt-1 border-t border-slate-800/80">
+            <span class="flex items-center gap-1.5 text-purple-300">
+              <i class="fa-solid fa-wave-square text-[10px] text-purple-400"></i> Gravitational Waves (2.5PN)
+            </span>
+            <input type="checkbox" id="chkGravitationalWaves" class="w-3.5 h-3.5 accent-purple-400 rounded" checked>
+          </label>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Celestial Body Catalog / List Drawer -->
+  <aside id="bodyListDrawer" class="fixed top-16 left-3 bottom-16 w-96 max-w-[calc(100vw-24px)] z-30 glass-panel rounded-2xl p-4 flex flex-col gap-3 shadow-2xl transition-transform duration-300 -translate-x-full">
+    <div class="flex items-center justify-between border-b border-slate-800 pb-2.5">
+      <div class="flex items-center gap-2 text-sm font-semibold text-cyan-300">
+        <i class="fa-solid fa-list-ul"></i>
+        <span>Celestial Catalog & Leaderboard</span>
+        <span id="bodyListCount" class="text-[11px] text-slate-400 mono font-normal"></span>
+      </div>
+      <div class="flex items-center gap-1.5">
+        <button id="btnClearArchivedBodies" class="text-[10px] text-slate-400 hover:text-red-400 px-2 py-0.5 rounded bg-slate-800 border border-slate-700" title="Clear archived dead bodies">Clear Dead</button>
+        <button id="btnCloseBodyList" class="text-slate-400 hover:text-white text-sm"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+    </div>
+
+    <!-- Sorting Controls -->
+    <div class="flex items-center justify-between gap-2 p-2 bg-slate-900/70 rounded-xl border border-slate-800 text-xs">
+      <div class="flex items-center gap-1.5 flex-1 min-w-0">
+        <span class="text-slate-400 text-[11px] flex-shrink-0">Sort:</span>
+        <select id="bodySortKey" class="bg-slate-800 text-slate-200 border border-slate-700 rounded-lg px-2 py-1 text-xs focus:outline-none flex-1 truncate">
+          <option value="absorb" selected>👑 Absorbed Count (Leaderboard)</option>
+          <option value="mass">Mass</option>
+          <option value="alive">Status (Alive/Dead)</option>
+          <option value="name">Name (#ID)</option>
+          <option value="speed">Speed</option>
+          <option value="angle">Velocity Angle</option>
+          <option value="distance">Distance to Primary</option>
+          <option value="age">Age (Lifetime)</option>
+          <option value="color">Color</option>
+        </select>
+      </div>
+      <button id="btnToggleSortOrder" class="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs text-slate-200 transition flex-shrink-0">
+        <i id="sortOrderIcon" class="fa-solid fa-arrow-down-wide-short text-cyan-400"></i>
+        <span id="sortOrderLabel" class="text-[11px]">Desc</span>
+      </button>
+    </div>
+
+    <!-- Table Container -->
+    <div class="flex-1 overflow-y-auto pr-1">
+      <table class="w-full text-[11px] mono text-left border-collapse">
+        <thead class="text-[10px] text-slate-400 uppercase border-b border-slate-800 sticky top-0 bg-slate-950/90 backdrop-blur-sm">
+          <tr>
+            <th class="pb-1.5 px-1.5">Name</th>
+            <th class="pb-1.5 px-1.5">Status</th>
+            <th class="pb-1.5 px-1.5 text-right">Mass</th>
+            <th class="pb-1.5 px-1.5 text-center text-amber-300" title="Total absorbed bodies">Absorbed</th>
+            <th class="pb-1.5 px-1.5 text-right">Speed</th>
+            <th class="pb-1.5 px-1.5 text-right">Angle</th>
+            <th class="pb-1.5 px-1.5 text-right">Dist(Star)</th>
+            <th class="pb-1.5 px-1.5 text-right">Age</th>
+            <th class="pb-1.5 px-1 text-center">Action</th>
+          </tr>
+        </thead>
+        <tbody id="bodyTableBody" class="divide-y divide-slate-800/60">
+        </tbody>
+      </table>
+      <div id="bodyListEmpty" class="hidden text-center text-slate-500 py-10 text-xs font-sans">
+        No celestial bodies
+      </div>
+    </div>
+  </aside>
+
+  <!-- Bottom Left: Pan & Zoom Controls & HUD Stats -->
+  <div class="absolute bottom-3 left-3 z-10 flex flex-col gap-2 pointer-events-none">
+    <div class="flex items-center gap-2 pointer-events-auto glass-panel p-2 rounded-xl">
+      <!-- D-Pad for Screen Panning -->
+      <div class="grid grid-cols-3 gap-1 w-20">
+        <div></div>
+        <button id="btnPanUp" class="w-6 h-6 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 flex items-center justify-center transition active:bg-cyan-600" title="Pan Up (W / ↑)">
+          <i class="fa-solid fa-chevron-up text-[10px]"></i>
+        </button>
+        <div></div>
+        <button id="btnPanLeft" class="w-6 h-6 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 flex items-center justify-center transition active:bg-cyan-600" title="Pan Left (A / ←)">
+          <i class="fa-solid fa-chevron-left text-[10px]"></i>
+        </button>
+        <button id="btnResetView" class="w-6 h-6 rounded bg-slate-800 hover:bg-slate-700 text-cyan-400 flex items-center justify-center transition" title="Reset View to Center">
+          <i class="fa-solid fa-dot-circle text-[10px]"></i>
+        </button>
+        <button id="btnPanRight" class="w-6 h-6 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 flex items-center justify-center transition active:bg-cyan-600" title="Pan Right (D / →)">
+          <i class="fa-solid fa-chevron-right text-[10px]"></i>
+        </button>
+        <div></div>
+        <button id="btnPanDown" class="w-6 h-6 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 flex items-center justify-center transition active:bg-cyan-600" title="Pan Down (S / ↓)">
+          <i class="fa-solid fa-chevron-down text-[10px]"></i>
+        </button>
+        <div></div>
+      </div>
+
+      <div class="h-8 w-px bg-slate-700"></div>
+
+      <!-- Zoom In & Out Controls -->
+      <div class="flex items-center gap-1.5 px-1">
+        <button id="btnZoomOut" class="w-7 h-7 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 flex items-center justify-center transition" title="Zoom Out">
+          <i class="fa-solid fa-minus text-xs"></i>
+        </button>
+        <span id="zoomLevelDisplay" class="mono text-xs w-14 text-center text-slate-300">100%</span>
+        <button id="btnZoomIn" class="w-7 h-7 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 flex items-center justify-center transition" title="Zoom In">
+          <i class="fa-solid fa-plus text-xs"></i>
+        </button>
+      </div>
+
+      <div class="h-8 w-px bg-slate-700"></div>
+
+      <!-- Map Scale Ruler Bar -->
+      <div id="scaleRulerContainer" class="flex flex-col items-center justify-center px-1.5 min-w-[90px] sm:min-w-[110px]" title="Map Scale: Physical distance represented by the sample line segment">
+        <span id="scaleRulerText" class="mono text-[10px] sm:text-[11px] text-cyan-300 font-semibold tracking-wide">128,133 km</span>
+        <div class="relative w-[90px] sm:w-[100px] flex items-center justify-center my-0.5">
+          <!-- Scale ruler bracket line with left and right tick marks: |--| -->
+          <div id="scaleRulerLine" class="w-full h-1.5 border-x-2 border-b-2 border-cyan-400 bg-cyan-400/20 rounded-b-sm"></div>
+        </div>
+        <span id="scaleRulerSubtext" class="mono text-[8px] sm:text-[9px] text-slate-400">100 px world</span>
+      </div>
+    </div>
+
+    <!-- HUD Stats & Elapsed Simulation Time -->
+    <div class="pointer-events-auto glass-panel px-3 py-2 rounded-xl text-xs flex flex-wrap items-center gap-3 text-slate-400">
+      <div class="flex items-center gap-1.5">
+        <i class="fa-regular fa-clock text-amber-400"></i>
+        <span class="text-slate-300">Time:</span>
+        <span id="simTimeDisplay" class="mono font-semibold text-amber-300">0.0s</span>
+      </div>
+      <div class="h-3 w-px bg-slate-700"></div>
+      <div class="flex items-center gap-1.5">
+        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+        <span class="text-slate-300">Bodies:</span>
+        <span id="bodyCountDisplay" class="mono font-bold text-white">0</span>
+      </div>
+      <div class="h-3 w-px bg-slate-700"></div>
+      <div>
+        <span>FPS:</span>
+        <span id="fpsDisplay" class="mono text-cyan-300 font-semibold">60</span>
+      </div>
+      <div class="h-3 w-px bg-slate-700 hidden sm:block"></div>
+      <div class="flex items-center gap-1.5 text-xs text-amber-300">
+        <i class="fa-solid fa-crown text-amber-400"></i>
+        <span class="text-slate-400">Primary:</span>
+        <span id="primaryStarName" class="mono font-bold text-white">None</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Pan Mode Hover Tooltip -->
+  <div id="hoverTooltip" class="fixed z-40 glass-tooltip rounded-xl p-3 text-xs pointer-events-none opacity-0 transition-opacity duration-150 w-72 shadow-2xl">
+    <div class="flex items-center justify-between border-b border-slate-700/80 pb-1.5 mb-1.5">
+      <div class="flex items-center gap-1.5 font-bold">
+        <span id="ttColorBadge" class="w-3 h-3 rounded-full inline-block"></span>
+        <span id="ttName" class="text-cyan-300 truncate max-w-[130px]">Body Name</span>
+        <span id="ttPrimaryBadge" class="hidden px-1 py-0.2 rounded bg-amber-500/20 text-amber-300 border border-amber-500/50 text-[9px] font-bold">★Primary</span>
+      </div>
+      <span class="text-[9px] text-cyan-400/80 font-medium">Click to inspect</span>
+    </div>
+    <div class="grid grid-cols-2 gap-x-2 gap-y-1 text-[11px]">
+      <div><span class="text-slate-400 block text-[10px]">Age</span><span id="ttAge" class="mono text-amber-300 font-medium"></span></div>
+      <div><span class="text-slate-400 block text-[10px]">Mass</span><span id="ttMass" class="mono text-slate-200 font-medium"></span></div>
+      <div><span class="text-slate-400 block text-[10px]">Radius</span><span id="ttRadius" class="mono text-slate-200 font-medium"></span></div>
+      <div><span class="text-slate-400 block text-[10px]">Dist to Primary</span><span id="ttDistance" class="mono text-cyan-300 font-bold"></span></div>
+      <div><span class="text-slate-400 block text-[10px]">Speed</span><span id="ttSpeed" class="mono text-cyan-300 font-medium"></span></div>
+      <div><span class="text-slate-400 block text-[10px]">Direction</span><span id="ttAngle" class="mono text-cyan-300 font-medium"></span></div>
+    </div>
+
+    <div id="ttRelMassRow" class="hidden mt-1 pt-1 border-t border-slate-700/60 flex justify-between items-center text-[11px]">
+      <span class="text-purple-400 font-medium flex items-center gap-1">
+        <i class="fa-solid fa-weight-hanging text-[10px]"></i> Rel. Mass:
+      </span>
+      <span id="ttRelMass" class="mono text-purple-300 font-bold"></span>
+    </div>
+    <div id="ttTimeRateRow" class="hidden mt-1 flex justify-between items-center text-[11px]">
+      <span class="text-indigo-400 font-medium flex items-center gap-1">
+        <i class="fa-solid fa-clock text-[10px]"></i> Time Flow (d&tau;/dt):
+      </span>
+      <span id="ttTimeRate" class="mono text-indigo-300 font-bold"></span>
+    </div>
+
+    <!-- Parent / Captured Body Dynamic Distance Rows -->
+    <div id="ttParentRow" class="hidden mt-1.5 pt-1 border-t border-slate-700/60 flex justify-between items-center text-[11px]">
+      <span class="text-emerald-400 font-medium flex items-center gap-1">
+        <i class="fa-solid fa-link text-[10px]"></i> Parent (<span id="ttParentName"></span>) Dist:
+      </span>
+      <span id="ttParentDistance" class="mono text-emerald-300 font-bold"></span>
+    </div>
+
+    <div id="ttCapturedRow" class="hidden mt-1.5 pt-1 border-t border-slate-700/60 flex flex-col gap-0.5 text-[11px]">
+      <span class="text-sky-300 font-medium flex items-center gap-1">
+        <i id="ttCapturedIcon" class="fa-solid fa-satellite text-[10px]"></i> <span id="ttCapturedTitle">Captured Moons Distance:</span>
+      </span>
+      <div id="ttCapturedList" class="mono text-slate-200 pl-2 flex flex-col gap-0.5 text-[10px] max-h-28 overflow-y-auto pr-1"></div>
+    </div>
+
+    <div class="mt-1.5 pt-1.5 border-t border-slate-700/60 flex justify-between items-center text-[11px]">
+      <span class="text-amber-300 font-medium flex items-center gap-1">
+        <i class="fa-solid fa-bullseye text-[10px]"></i> Total Absorbed:
+      </span>
+      <span id="ttAbsorbCount" class="mono text-amber-300 font-bold">0</span>
+    </div>
+    <div class="mt-1 flex justify-between items-center text-[11px]">
+      <span class="text-emerald-400 font-medium flex items-center gap-1">
+        <i class="fa-regular fa-circle-dot text-[10px]"></i> Hill Sphere:
+      </span>
+      <span id="ttHillRadius" class="mono text-emerald-300 font-bold"></span>
+    </div>
+    <div id="ttSchwarzschildRow" class="hidden mt-1 flex justify-between items-center text-[11px]">
+      <span class="text-purple-400 font-medium flex items-center gap-1">
+        <i class="fa-solid fa-circle text-[10px]"></i> Event Horizon:
+      </span>
+      <span id="ttSchwarzschildRadius" class="mono text-purple-300 font-bold"></span>
+    </div>
+  </div>
+
+  <!-- Editable Celestial Body Inspector Drawer -->
+  <div id="inspectorPanel" class="fixed top-16 right-3 bottom-14 z-30 glass-panel rounded-2xl p-4 w-84 text-xs text-slate-200 shadow-2xl transition-all duration-300 opacity-0 pointer-events-none translate-x-6 max-w-[calc(100vw-24px)] overflow-y-auto">
+    <div class="flex items-center justify-between border-b border-slate-700 pb-2 mb-3">
+      <div class="flex items-center gap-2 font-bold">
+        <i id="inspHeaderIcon" class="fa-solid fa-pen-to-square text-cyan-400"></i>
+        <span id="inspHeaderTitle" class="text-sm text-slate-100">Edit Body</span>
+        <span id="inspPrimaryBadge" class="hidden px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/50 text-[10px] font-bold">★Primary</span>
+        <span id="inspBlackHoleBadge" class="hidden px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/50 text-[10px] font-bold">🕳Black Hole</span>
+      </div>
+      <button id="btnCloseInspector" class="text-slate-400 hover:text-white p-1">
+        <i class="fa-solid fa-xmark text-sm"></i>
+      </button>
+    </div>
+
+    <!-- Single Body View -->
+    <div id="inspectorSingleView" class="flex flex-col gap-2.5">
+      <!-- Tracking Button -->
+      <div class="grid grid-cols-2 gap-2">
+        <button id="btnTrackBody" class="py-2 px-2.5 rounded-xl border text-xs font-semibold flex items-center justify-center gap-1.5 transition bg-slate-800 border-slate-700 text-slate-200 hover:border-cyan-500" title="Track this body at screen center">
+          <i class="fa-solid fa-crosshairs text-cyan-400 text-xs"></i>
+          <span id="btnTrackBodyLabel">Track at Center</span>
+        </button>
+        <button id="btnToggleRelativeOriginInsp" class="py-2 px-2.5 rounded-xl border text-xs font-semibold flex items-center justify-center gap-1.5 transition bg-slate-800 border-slate-700 text-slate-200 hover:border-cyan-500" title="Switch to relative coordinate frame with this body as the origin">
+          <i class="fa-solid fa-arrows-to-dot text-cyan-400 text-xs"></i>
+          <span id="btnToggleRelativeOriginInspLabel">Fix as Origin</span>
+        </button>
+      </div>
+
+      <!-- Name Edit -->
+      <div class="flex flex-col gap-1">
+        <label class="text-[11px] text-slate-400 font-medium">Name</label>
+        <input type="text" id="editBodyName" class="bg-slate-900/90 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-cyan-500 transition">
+      </div>
+
+      <!-- Color Edit -->
+      <div class="flex items-center justify-between p-2 bg-slate-900/60 rounded-xl border border-slate-800">
+        <span class="text-[11px] text-slate-300">Color</span>
+        <div class="flex items-center gap-2">
+          <input type="color" id="editBodyColor" class="w-7 h-7 rounded cursor-pointer border border-slate-700 bg-transparent">
+          <span id="editBodyColorHex" class="mono text-xs text-slate-400">#ffffff</span>
+        </div>
+      </div>
+
+      <!-- Mass Edit -->
+      <div class="flex flex-col gap-1 p-2 bg-slate-900/60 rounded-xl border border-slate-800">
+        <div class="flex justify-between items-center text-[11px]">
+          <span class="text-slate-300 font-medium">Mass</span>
+          <span class="text-[10px] text-pink-400">* Negative for anti-gravity</span>
+        </div>
+        <input type="text" inputmode="decimal" id="editBodyMass" class="mono bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-right text-cyan-300 focus:outline-none focus:border-cyan-500" placeholder="e.g. 5.972e24">
+        <div id="inspRelMassRow" class="hidden flex justify-between items-center text-[11px] pt-1 mt-0.5 border-t border-slate-800/80">
+          <span class="text-purple-300 font-medium flex items-center gap-1">
+            <i class="fa-solid fa-weight-hanging text-[9px] text-purple-400"></i> Rel. Mass:
+          </span>
+          <span id="inspRelMassVal" class="mono text-purple-300 font-semibold text-[10px]"></span>
+        </div>
+      </div>
+
+      <!-- Radius Edit -->
+      <div class="flex flex-col gap-1 p-2 bg-slate-900/60 rounded-xl border border-slate-800">
+        <div class="flex justify-between items-center text-[11px]">
+          <span id="lblEditBodyRadius" class="text-slate-300 font-medium cursor-pointer hover:text-cyan-300 transition" title="Click to enter exact radius">Radius</span>
+          <button type="button" id="btnEditBodyRadiusEdit" class="mono text-cyan-300 hover:text-white px-1.5 py-0.5 rounded bg-slate-800/80 hover:bg-slate-700 border border-slate-700/60 hover:border-cyan-500/60 flex items-center gap-1 cursor-pointer transition text-xs" title="Click to enter exact radius">
+            <span id="editBodyRadiusVal"></span>
+            <i class="fa-solid fa-pen text-[8px] text-slate-400 opacity-70"></i>
+          </button>
+        </div>
+        <input type="range" id="editBodyRadius" min="2" max="80" step="1" class="accent-cyan-400 cursor-pointer" title="Drag to adjust or double-click to enter exact radius">
+      </div>
+
+      <!-- Velocity (Magnitude & Direction) Edit with Drag Pad -->
+      <div class="flex flex-col gap-2 p-2.5 bg-slate-900/60 rounded-xl border border-slate-800">
+        <div class="flex items-center justify-between">
+          <span class="text-slate-300 font-medium text-[11px] flex items-center gap-1">
+            <i class="fa-solid fa-arrows-up-down-left-right text-cyan-400 text-[10px]"></i>
+            <span>Velocity & Direction (Drag Pad)</span>
+          </span>
+          <button id="btnResetVelocity" class="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 hover:text-white transition" title="Set velocity to zero">
+            Stop (0)
+          </button>
+        </div>
+
+        <!-- 2D Vector Drag Pad -->
+        <div class="flex justify-center items-center py-1">
+          <div class="relative w-[130px] h-[130px] rounded-full bg-slate-950/80 border border-slate-700/80 shadow-inner flex items-center justify-center cursor-crosshair group overflow-hidden">
+            <canvas id="vectorPadCanvas" width="130" height="130" class="block w-full h-full touch-none"></canvas>
+            <div class="absolute bottom-1 right-1 text-[9px] mono text-slate-500 pointer-events-none select-none">Pad</div>
+          </div>
+        </div>
+
+        <p class="text-[10px] text-slate-400 text-center leading-tight">
+          Drag inside pad or on-screen vector gizmo to adjust
+        </p>
+
+        <!-- Numeric Inputs -->
+        <div class="grid grid-cols-2 gap-2 pt-1 border-t border-slate-800/80">
+          <div class="flex flex-col gap-1">
+            <div class="flex justify-between items-center text-[10px]">
+              <span class="text-slate-400">Speed (km/s)</span>
+              <span id="inspRelSpeedRatio" class="mono text-[9px] text-amber-400 font-semibold hidden"></span>
+            </div>
+            <input type="number" id="editBodySpeed" step="0.1" min="0" class="mono bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-xs text-right text-cyan-300 focus:outline-none focus:border-cyan-500">
+          </div>
+          <div class="flex flex-col gap-1">
+            <span class="text-slate-400 text-[10px]">Angle (deg °)</span>
+            <input type="number" id="editBodyAngle" step="1" min="-360" max="360" class="mono bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-xs text-right text-cyan-300 focus:outline-none focus:border-cyan-500">
+          </div>
+        </div>
+      </div>
+
+      <!-- Read-Only Physical Metrics -->
+      <div class="p-2.5 bg-slate-950/70 rounded-xl border border-slate-800/80 flex flex-col gap-1.5">
+        <div class="flex justify-between items-center text-[11px]">
+          <span class="text-amber-300 font-medium">Total Absorbed:</span>
+          <span id="inspAbsorbCount" class="mono text-amber-300 font-bold">0</span>
+        </div>
+        <div class="flex justify-between items-center text-[11px]">
+          <span class="text-slate-400" title="Elapsed coordinate time since body creation">Age (Coord. Time):</span>
+          <span id="inspAge" class="mono text-slate-200 font-semibold"></span>
+        </div>
+        <div id="inspProperAgeRow" class="hidden flex justify-between items-center text-[11px]">
+          <span class="text-indigo-300 flex items-center gap-1" title="Elapsed proper time on body clock since creation">
+            <i class="fa-solid fa-clock text-[9px] text-indigo-400"></i> Proper Age (&tau;):
+          </span>
+          <div class="flex items-center gap-1.5">
+            <span id="inspProperAge" class="mono text-indigo-300 font-semibold"></span>
+            <span id="inspTimeDilationLag" class="mono text-[10px] text-amber-400 font-medium" title="Time dilation difference (Coordinate Age - Proper Age)"></span>
+          </div>
+        </div>
+        <div id="inspPrimaryRow" class="flex justify-between items-center text-[11px] p-1 -mx-1 rounded transition group">
+          <span class="text-slate-400 flex items-center gap-1 group-hover:text-cyan-300 transition">
+            <i class="fa-solid fa-star text-[10px] text-amber-400/80"></i> Distance to Primary:
+          </span>
+          <div class="flex items-center gap-1">
+            <span id="inspDistancePrimary" class="mono text-cyan-300 font-bold"></span>
+            <i id="inspPrimaryArrow" class="fa-solid fa-arrow-right text-[9px] text-cyan-400 opacity-0 group-hover:opacity-100 transition hidden"></i>
+          </div>
+        </div>
+
+        <!-- Mutual Distance Row for Captured Child Body -->
+        <div id="inspParentRow" class="hidden flex justify-between items-center text-[11px] pt-1 border-t border-slate-800/80 cursor-pointer hover:bg-slate-800/70 p-1 -mx-1 rounded transition group">
+          <span class="text-emerald-400 font-medium flex items-center gap-1 group-hover:text-emerald-300 transition">
+            <i class="fa-solid fa-link text-[10px]"></i> Parent (<span id="inspParentName" class="underline underline-offset-2"></span>) Dist:
+          </span>
+          <div class="flex items-center gap-1">
+            <span id="inspParentDistance" class="mono text-emerald-300 font-bold"></span>
+            <i class="fa-solid fa-arrow-right text-[9px] text-emerald-400 opacity-0 group-hover:opacity-100 transition"></i>
+          </div>
+        </div>
+
+        <!-- Mutual Distance List for Host/Parent Body -->
+        <div id="inspCapturedRow" class="hidden flex flex-col gap-1 text-[11px] pt-1 border-t border-slate-800/80">
+          <span class="text-sky-300 font-medium flex items-center gap-1">
+            <i id="inspCapturedIcon" class="fa-solid fa-satellite text-[10px]"></i> <span id="inspCapturedTitle">Captured Moons Distance:</span>
+          </span>
+          <div id="inspCapturedList" class="mono text-slate-200 flex flex-col gap-1 pl-2 text-[10px] max-h-40 overflow-y-auto pr-1"></div>
+        </div>
+
+        <div class="flex justify-between items-center text-[11px]">
+          <span class="text-emerald-400 font-medium">Hill Sphere Radius:</span>
+          <span id="inspHillRadius" class="mono text-emerald-300 font-bold"></span>
+        </div>
+        <div id="inspSchwarzschildRow" class="hidden flex justify-between items-center text-[11px]">
+          <span class="text-purple-400 font-medium">Event Horizon (r<sub>s</sub>):</span>
+          <span id="inspSchwarzschildRadius" class="mono text-purple-300 font-bold"></span>
+        </div>
+        <div id="inspRelativityCard" class="hidden p-2 bg-purple-950/30 rounded-lg border border-purple-800/50 flex flex-col gap-1 my-0.5">
+          <div class="flex items-center justify-between text-[11px] font-semibold text-purple-300 border-b border-purple-800/40 pb-1">
+            <span class="flex items-center gap-1">
+              <i class="fa-solid fa-atom text-purple-400"></i> Time Flow Rate (d&tau;/dt)
+            </span>
+            <span id="inspTimeDilationRate" class="mono text-purple-200">1.0000x</span>
+          </div>
+          <div class="flex justify-between items-center text-[10px]">
+            <span class="text-slate-400">Kinematic (1/&gamma;):</span>
+            <span id="inspKinematicDilation" class="mono text-slate-300">1.0000x</span>
+          </div>
+          <div class="flex justify-between items-center text-[10px]">
+            <span class="text-slate-400">Gravitational:</span>
+            <span id="inspGravDilation" class="mono text-slate-300">1.0000x</span>
+          </div>
+        </div>
+        <div class="flex justify-between items-center text-[11px]">
+          <span class="text-slate-400">Body ID:</span>
+          <span id="inspId" class="mono text-slate-400 text-[10px]"></span>
+        </div>
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="flex gap-2 pt-0.5">
+        <button id="btnDeleteBody" class="flex-1 py-1.5 rounded-lg bg-red-950/60 hover:bg-red-900/80 border border-red-700/60 text-red-300 text-xs flex items-center justify-center gap-1.5 transition">
+          <i class="fa-solid fa-trash-can text-[10px]"></i>
+          <span>Delete Body</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Multi-Selection View -->
+    <div id="inspectorMultiView" class="hidden flex flex-col gap-3">
+      <!-- Summary metrics badge -->
+      <div class="p-3 bg-cyan-950/40 rounded-xl border border-cyan-800/60 flex flex-col gap-2">
+        <div class="flex items-center justify-between">
+          <span class="text-xs font-bold text-cyan-300 flex items-center gap-1.5">
+            <i class="fa-solid fa-object-group text-cyan-400"></i>
+            <span id="multiCountLabel">Selected: 0 bodies</span>
+          </span>
+          <span class="text-[10px] px-2 py-0.5 rounded-full bg-cyan-900/60 text-cyan-200 border border-cyan-700/50">Box Selected</span>
+        </div>
+        <div class="grid grid-cols-2 gap-2 text-[11px] pt-1 border-t border-cyan-900/60">
+          <div>
+            <span class="text-slate-400 block text-[10px]">Total Mass</span>
+            <span id="multiTotalMass" class="mono text-slate-200 font-medium">-</span>
+          </div>
+          <div>
+            <span class="text-slate-400 block text-[10px]">Avg Speed</span>
+            <span id="multiAvgSpeed" class="mono text-cyan-300 font-medium">-</span>
+          </div>
+          <div>
+            <span class="text-slate-400 block text-[10px]">Largest Body</span>
+            <span id="multiLargestBody" class="truncate block text-slate-200 font-medium">-</span>
+          </div>
+          <div>
+            <span class="text-slate-400 block text-[10px]">Fastest Body</span>
+            <span id="multiFastestBody" class="truncate block text-amber-300 font-medium">-</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Selected Bodies List Scrollbox -->
+      <div class="flex flex-col gap-1">
+        <div class="flex items-center justify-between text-[11px] text-slate-400 px-1">
+          <span>Selected Bodies List</span>
+          <span id="multiListCount" class="text-[10px] mono">0</span>
+        </div>
+        <div id="multiBodiesList" class="max-h-36 overflow-y-auto rounded-xl bg-slate-950/70 border border-slate-800 p-1.5 flex flex-col gap-1 text-[11px]">
+        </div>
+      </div>
+
+      <!-- Bulk Velocity (Magnitude & Direction) Edit with Drag Pad -->
+      <div class="flex flex-col gap-2 p-2.5 bg-slate-900/60 rounded-xl border border-slate-800">
+        <div class="flex items-center justify-between">
+          <span class="text-slate-300 font-semibold text-[11px] flex items-center gap-1.5">
+            <i class="fa-solid fa-arrows-up-down-left-right text-cyan-400 text-[10px]"></i>
+            <span>Set Uniform Velocity & Direction</span>
+          </span>
+          <button id="btnMultiResetVelocity" class="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 hover:text-white transition" title="Set velocity of all selected bodies to zero">
+            Stop All (0)
+          </button>
+        </div>
+
+        <!-- 2D Vector Drag Pad for Multi -->
+        <div class="flex justify-center items-center py-1">
+          <div class="relative w-[130px] h-[130px] rounded-full bg-slate-950/80 border border-slate-700/80 shadow-inner flex items-center justify-center cursor-crosshair group overflow-hidden">
+            <canvas id="multiVectorPadCanvas" width="130" height="130" class="block w-full h-full touch-none"></canvas>
+            <div class="absolute bottom-1 right-1 text-[9px] mono text-slate-500 pointer-events-none select-none">Pad</div>
+          </div>
+        </div>
+
+        <p class="text-[10px] text-slate-400 text-center leading-tight">
+          Drag or enter values to apply velocity to all selected bodies
+        </p>
+
+        <!-- Numeric Inputs for Multi -->
+        <div class="grid grid-cols-2 gap-2 pt-1 border-t border-slate-800/80">
+          <div class="flex flex-col gap-1">
+            <span class="text-slate-400 text-[10px]">Speed (km/s)</span>
+            <input type="number" id="editMultiSpeed" step="0.1" min="0" value="0.0" class="mono bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-xs text-right text-cyan-300 focus:outline-none focus:border-cyan-500">
+          </div>
+          <div class="flex flex-col gap-1">
+            <span class="text-slate-400 text-[10px]">Angle (deg °)</span>
+            <input type="number" id="editMultiAngle" step="1" min="-360" max="360" value="0" class="mono bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-xs text-right text-cyan-300 focus:outline-none focus:border-cyan-500">
+          </div>
+        </div>
+      </div>
+
+      <!-- Bulk Delete Action Button -->
+      <div class="flex gap-2 pt-1">
+        <button id="btnMultiDeleteBodies" class="w-full py-2 rounded-xl bg-red-950/80 hover:bg-red-900 border border-red-600/70 text-red-200 text-xs font-semibold flex items-center justify-center gap-2 transition shadow-lg">
+          <i class="fa-solid fa-trash-can"></i>
+          <span id="btnMultiDeleteLabel">Batch Delete Selected Bodies</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Event History Drawer -->
+  <div id="historyDrawer" class="fixed top-16 left-3 bottom-16 w-84 max-w-[calc(100vw-24px)] z-30 glass-panel rounded-2xl p-4 flex flex-col gap-3 shadow-2xl transition-transform duration-300 -translate-x-full">
+    <div class="flex items-center justify-between border-b border-slate-800 pb-2.5">
+      <div class="flex items-center gap-2 text-sm font-semibold text-amber-300">
+        <i class="fa-solid fa-clock-rotate-left"></i>
+        <span>Event History (Create / Merge / Annihilation)</span>
+      </div>
+      <div class="flex items-center gap-2">
+        <button id="btnClearHistory" class="text-[11px] text-slate-400 hover:text-red-400 px-2 py-0.5 rounded bg-slate-800 border border-slate-700">Clear</button>
+        <button id="btnCloseHistory" class="text-slate-400 hover:text-white text-sm"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+    </div>
+    <div id="historyList" class="flex-1 overflow-y-auto space-y-2 pr-1 text-xs">
+      <div class="text-center text-slate-500 py-8">No event history</div>
+    </div>
+  </div>
+
+  <!-- Fast-Forward Time Skip Modal -->
+  <div id="timeSkipModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm opacity-0 pointer-events-none transition-opacity duration-200">
+    <div class="bg-slate-900 border border-slate-700 w-full max-w-sm mx-4 rounded-2xl shadow-2xl p-5 flex flex-col gap-4 text-slate-200">
+      <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+        <div class="flex items-center gap-2 font-semibold text-indigo-400">
+          <i class="fa-solid fa-forward-fast"></i>
+          <span>Fast-Forward Time Skip (Headless Simulation)</span>
+        </div>
+        <button id="btnCloseTimeSkip" class="text-slate-400 hover:text-white transition">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+      <p class="text-xs text-slate-400 leading-relaxed">
+        Skips screen rendering to execute high-speed numerical physics integration in the background, simulating orbital evolution instantly.
+      </p>
+      <div class="flex flex-col gap-2">
+        <label class="text-xs text-slate-300">Select or enter simulation duration:</label>
+        <div class="grid grid-cols-4 gap-1.5">
+          <button class="btn-quick-skip py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs mono text-cyan-300" data-skip="30">+30s</button>
+          <button class="btn-quick-skip py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs mono text-cyan-300" data-skip="100">+100s</button>
+          <button class="btn-quick-skip py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs mono text-cyan-300" data-skip="300">+300s</button>
+          <button class="btn-quick-skip py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs mono text-cyan-300" data-skip="600">+600s</button>
+          <button class="btn-quick-skip py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs mono text-cyan-300" data-skip="1000">+1ks</button>
+          <button class="btn-quick-skip py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs mono text-cyan-300" data-skip="3000">+3ks</button>
+          <button class="btn-quick-skip py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs mono text-cyan-300" data-skip="10000">+10ks</button>
+          <button class="btn-quick-skip py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs mono text-cyan-300" data-skip="30000">+30ks</button>
+        </div>
+        <div class="flex items-center gap-2 mt-2">
+          <input type="number" id="skipTimeSecondsInput" value="300" min="1" max="50000" class="mono flex-1 bg-slate-950 border border-slate-700 rounded-lg p-2 text-xs text-right text-indigo-300 focus:outline-none focus:border-indigo-500">
+          <span class="text-xs text-slate-400">simulation seconds</span>
+        </div>
+      </div>
+      <div class="pt-2 flex justify-end gap-2 border-t border-slate-800">
+        <button id="btnExecuteSkip" class="w-full py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs shadow-lg flex items-center justify-center gap-2 transition">
+          <i class="fa-solid fa-bolt"></i>
+          <span>Execute Fast-Forward Skip</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Save / Load Modal -->
+  <div id="saveModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm opacity-0 pointer-events-none transition-opacity duration-200">
+    <div class="bg-slate-900 border border-slate-700 w-full max-w-md mx-4 rounded-2xl shadow-2xl p-5 flex flex-col gap-4 text-slate-200">
+      <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+        <div class="flex items-center gap-2 font-semibold text-cyan-400">
+          <i class="fa-solid fa-floppy-disk"></i>
+          <span>Save & Load</span>
+        </div>
+        <button id="btnCloseSaveModal" class="text-slate-400 hover:text-white transition">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+
+      <!-- Quick Slots -->
+      <div class="flex flex-col gap-2">
+        <span class="text-xs font-medium text-slate-400">Local Quick Slots</span>
+        <div class="grid grid-cols-3 gap-2">
+          <div class="flex flex-col gap-1 p-2 rounded-xl bg-slate-800/60 border border-slate-700">
+            <span class="text-[11px] font-semibold text-slate-300">Slot 1</span>
+            <div class="flex gap-1 mt-1">
+              <button class="slot-save-btn flex-1 py-1 rounded bg-cyan-600 hover:bg-cyan-500 text-[10px] font-semibold" data-slot="1">Save</button>
+              <button class="slot-load-btn flex-1 py-1 rounded bg-slate-700 hover:bg-slate-600 text-[10px]" data-slot="1">Load</button>
+            </div>
+          </div>
+          <div class="flex flex-col gap-1 p-2 rounded-xl bg-slate-800/60 border border-slate-700">
+            <span class="text-[11px] font-semibold text-slate-300">Slot 2</span>
+            <div class="flex gap-1 mt-1">
+              <button class="slot-save-btn flex-1 py-1 rounded bg-cyan-600 hover:bg-cyan-500 text-[10px] font-semibold" data-slot="2">Save</button>
+              <button class="slot-load-btn flex-1 py-1 rounded bg-slate-700 hover:bg-slate-600 text-[10px]" data-slot="2">Load</button>
+            </div>
+          </div>
+          <div class="flex flex-col gap-1 p-2 rounded-xl bg-slate-800/60 border border-slate-700">
+            <span class="text-[11px] font-semibold text-slate-300">Slot 3</span>
+            <div class="flex gap-1 mt-1">
+              <button class="slot-save-btn flex-1 py-1 rounded bg-cyan-600 hover:bg-cyan-500 text-[10px] font-semibold" data-slot="3">Save</button>
+              <button class="slot-load-btn flex-1 py-1 rounded bg-slate-700 hover:bg-slate-600 text-[10px]" data-slot="3">Load</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- JSON Export / Import -->
+      <div class="flex flex-col gap-1.5 pt-2 border-t border-slate-800">
+        <div class="flex items-center justify-between text-xs">
+          <span class="font-medium text-slate-400">JSON Export / Import</span>
+          <button id="btnCopyJson" class="text-cyan-400 hover:text-cyan-300 text-[11px] flex items-center gap-1">
+            <i class="fa-regular fa-copy"></i>
+            <span>Copy</span>
+          </button>
+        </div>
+        <textarea id="jsonStateArea" rows="4" class="mono w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-[11px] text-slate-300 focus:outline-none focus:border-cyan-500" placeholder="Paste or export JSON data here..."></textarea>
+        <div class="flex gap-2 pt-1">
+          <button id="btnExportJson" class="flex-1 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs border border-slate-700 text-slate-200">
+            Export
+          </button>
+          <button id="btnImportJson" class="flex-1 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-xs font-semibold text-white">
+            Import
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Direct Numeric Input Modal for Sliders -->
+  <div id="sliderInputModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm opacity-0 pointer-events-none transition-opacity duration-200">
+    <div class="bg-slate-900 border border-slate-700 w-full max-w-sm mx-4 rounded-2xl shadow-2xl p-5 flex flex-col gap-4 text-slate-200">
+      <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+        <div class="flex items-center gap-2 font-semibold text-cyan-400" id="sliderModalTitleWrap">
+          <i id="sliderModalIcon" class="fa-solid fa-sliders text-sm"></i>
+          <span id="sliderModalTitle">Direct Numeric Input</span>
+        </div>
+        <button id="btnCloseSliderModal" type="button" class="text-slate-400 hover:text-white transition p-1" title="Close (Esc)">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+
+      <p id="sliderModalDesc" class="text-xs text-slate-400 leading-relaxed">
+        Enter an exact numerical value.
+      </p>
+
+      <div class="flex items-center justify-between text-[11px] text-slate-400 bg-slate-950/60 px-3 py-1.5 rounded-lg border border-slate-800">
+        <span id="sliderModalRangeInfo">Range: 0.1 – 100</span>
+        <span id="sliderModalCurrentInfo" class="mono text-cyan-300">Current: 1.0</span>
+      </div>
+
+      <!-- Primary Input Field -->
+      <div class="flex flex-col gap-1.5">
+        <label id="sliderModalInputLabel" for="sliderModalInput" class="text-xs text-slate-300 font-medium">Value:</label>
+        <div class="relative flex items-center">
+          <input type="text" id="sliderModalInput" inputmode="decimal" class="mono w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sm text-cyan-300 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 text-right pr-16" placeholder="e.g. 5.972e24">
+          <span id="sliderModalUnit" class="absolute right-3 text-xs text-slate-400 select-none mono pointer-events-none"></span>
+        </div>
+        <div id="sliderModalError" class="text-xs text-red-400 hidden">Please enter a valid number.</div>
+      </div>
+
+      <!-- Dual Unit Field -->
+      <div id="sliderModalDualSection" class="hidden flex flex-col gap-1.5 pt-2 border-t border-slate-800">
+        <label id="sliderModalDualLabel" for="sliderModalDualInput" class="text-xs text-amber-300 font-medium">Physical Units:</label>
+        <div class="relative flex items-center">
+          <input type="text" id="sliderModalDualInput" inputmode="decimal" class="mono w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sm text-amber-300 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 text-right pr-16" placeholder="e.g. 100">
+          <span id="sliderModalDualUnit" class="absolute right-3 text-xs text-slate-400 select-none mono pointer-events-none"></span>
+        </div>
+        <p id="sliderModalDualDesc" class="text-[10px] text-slate-500">Modifying either field synchronizes both.</p>
+      </div>
+
+      <!-- Quick Preset Buttons -->
+      <div id="sliderModalPresetsContainer" class="flex flex-col gap-1.5">
+        <span class="text-[11px] text-slate-400 font-medium">Quick Presets:</span>
+        <div id="sliderModalPresets" class="flex flex-wrap gap-1.5"></div>
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="pt-2 flex justify-end gap-2 border-t border-slate-800">
+        <button id="btnCancelSliderModal" type="button" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition border border-slate-700">Cancel</button>
+        <button id="btnApplySliderModal" type="button" class="px-5 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-semibold shadow-lg shadow-cyan-900/30 transition flex items-center gap-1.5">
+          <i class="fa-solid fa-check text-xs"></i>
+          <span>Apply</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Notification Toast -->
+  <div id="toast" class="fixed top-16 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-xl text-xs font-medium glass-panel border border-cyan-500/40 text-cyan-300 shadow-xl opacity-0 pointer-events-none transition-all duration-300 transform -translate-y-2">
+    Notification
+  </div>
+
+  <!-- ES Modules Entry Point -->
+  <script type="module" src="src/main.js?v=20261003_5"></script>
+</body>
+</html>

@@ -1,0 +1,27 @@
+{
+  "name": "gravity-sandbox-2d",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "Interactive 2D celestial mechanics & N-body gravity simulator in HTML5 Canvas",
+  "scripts": {
+    "test": "node --test tests/**/*.test.js",
+    "lint": "make lint",
+    "check": "make check",
+    "serve": "node scripts/serve.js"
+  },
+  "packageManager": "pnpm@12.3.4",
+  "engines": {
+    "node": "24.20.0"
+  },
+  "devEngines": {
+    "runtime": {
+      "name": "node",
+      "version": "24.20.0"
+    },
+    "packageManager": {
+      "name": "pnpm",
+      "version": "12.3.4"
+    }
+  }
+}

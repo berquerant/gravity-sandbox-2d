@@ -28,7 +28,7 @@ jobs:
           persist-credentials: false
 
       - name: Setup pnpm and Node.js
-        uses: pnpm/setup@v3.1.1
+        uses: pnpm/setup@v3.1.2
 
       - name: Verify Node.js version
         run: node -v
